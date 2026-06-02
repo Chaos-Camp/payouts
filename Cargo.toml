@@ -1,0 +1,10 @@
+[package]
+name = "payouts"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Send payouts to a payment provider, retrying the failures worth retrying."
+license = "MIT"
+publish = false
+
+[dependencies]
