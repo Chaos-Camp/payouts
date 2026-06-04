@@ -6,3 +6,7 @@
 //! The crate depends on nothing but `std`.
 
 #![forbid(unsafe_code)]
+
+pub mod money;
+
+pub use money::{Amount, Currency};
