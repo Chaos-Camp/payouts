@@ -10,7 +10,9 @@
 pub mod money;
 pub mod provider;
 pub mod request;
+pub mod retry;
 
 pub use money::{Amount, Currency};
 pub use provider::{Provider, ProviderError, Receipt};
 pub use request::{PayoutRequest, PayoutRequestBuilder, RequestError};
+pub use retry::{backoff, send_with_retry};
