@@ -1,6 +1,6 @@
 //! The retry loop, end to end, against a scripted provider.
 
-use payouts::{send_with_retry, Amount, Currency, FakeProvider, PayoutRequest};
+use payouts::{send_with_retry, Amount, Currency, FakeProvider, NoSleep, PayoutRequest};
 
 fn request() -> PayoutRequest {
     PayoutRequest::builder()
@@ -14,8 +14,7 @@ fn request() -> PayoutRequest {
 #[test]
 fn retries_a_failed_payout() {
     let provider = FakeProvider::failing(2, 503);
-    // Really sleeps: 1s, then 2s.
-    let result = send_with_retry(&provider, &request(), 5);
+    let result = send_with_retry(&provider, &request(), 5, &mut NoSleep);
     assert!(result.is_ok());
     assert_eq!(provider.calls(), 3);
 }

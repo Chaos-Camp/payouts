@@ -4,6 +4,9 @@
 //! the attempt budget runs out. Between
 //! attempts it waits [`backoff`]`(attempt)`, which doubles each time so a
 //! struggling provider gets room to recover.
+//!
+//! Waiting goes through the [`Sleeper`] trait so that tests can run the
+//! whole retry loop without actually sleeping.
 
 use std::thread;
 use std::time::Duration;
@@ -13,6 +16,29 @@ use crate::request::PayoutRequest;
 
 /// The wait after the first failed attempt.
 const BASE_DELAY: Duration = Duration::from_secs(1);
+
+/// Something that can wait. Tests swap in [`NoSleep`].
+pub trait Sleeper {
+    fn sleep(&mut self, duration: Duration);
+}
+
+/// Blocks the current thread.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ThreadSleeper;
+
+impl Sleeper for ThreadSleeper {
+    fn sleep(&mut self, duration: Duration) {
+        thread::sleep(duration);
+    }
+}
+
+/// Doesn't wait at all. For tests.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoSleep;
+
+impl Sleeper for NoSleep {
+    fn sleep(&mut self, _duration: Duration) {}
+}
 
 /// How long to wait after attempt number `attempt` fails.
 ///
@@ -28,13 +54,15 @@ pub fn backoff(attempt: u32) -> Duration {
 /// failed.
 ///
 /// `max_attempts` counts the first try, so `1` means "no retries".
-pub fn send_with_retry<P>(
+pub fn send_with_retry<P, S>(
     provider: &P,
     req: &PayoutRequest,
     max_attempts: u32,
+    sleeper: &mut S,
 ) -> Result<Receipt, ProviderError>
 where
     P: Provider + ?Sized,
+    S: Sleeper + ?Sized,
 {
     let mut last_error = None;
     for attempt in 0..max_attempts {
@@ -42,7 +70,7 @@ where
             Ok(receipt) => return Ok(receipt),
             Err(err) => last_error = Some(err),
         }
-        thread::sleep(backoff(attempt));
+        sleeper.sleep(backoff(attempt));
     }
     Err(last_error.expect("at least one attempt was made"))
 }
