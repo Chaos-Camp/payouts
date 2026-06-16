@@ -8,6 +8,7 @@
 use std::cell::Cell;
 use std::fmt;
 
+use crate::money::Amount;
 use crate::request::PayoutRequest;
 
 /// Proof that the provider accepted a payout.
@@ -17,6 +18,8 @@ pub struct Receipt {
     pub id: String,
     /// Our reference, echoed back so receipts can be reconciled.
     pub reference: String,
+    /// What the provider says it paid out.
+    pub amount: Amount,
 }
 
 /// Why a provider rejected a payout.
@@ -101,6 +104,7 @@ impl Provider for FakeProvider {
         Ok(Receipt {
             id: format!("po_{call:04}"),
             reference: req.reference().to_string(),
+            amount: req.amount(),
         })
     }
 }
@@ -108,7 +112,7 @@ impl Provider for FakeProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::money::{Amount, Currency};
+    use crate::money::Currency;
 
     fn request(amount: Amount) -> PayoutRequest {
         PayoutRequest::builder()

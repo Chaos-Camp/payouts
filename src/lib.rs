@@ -12,7 +12,7 @@ pub mod provider;
 pub mod request;
 pub mod retry;
 
-pub use money::{Amount, Currency};
+pub use money::{Amount, Currency, MoneyError};
 pub use provider::{FakeProvider, Provider, ProviderError, Receipt};
 pub use request::{PayoutRequest, PayoutRequestBuilder, RequestError};
 pub use retry::{backoff, send_with_retry, NoSleep, Sleeper, ThreadSleeper};

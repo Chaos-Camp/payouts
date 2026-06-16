@@ -4,6 +4,7 @@
 //! cents.
 
 use std::fmt;
+use std::str::FromStr;
 
 /// The currencies Tidepool pays out in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,6 +21,19 @@ impl Currency {
             Currency::Usd => "USD",
             Currency::Eur => "EUR",
             Currency::Gbp => "GBP",
+        }
+    }
+}
+
+impl FromStr for Currency {
+    type Err = MoneyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "USD" => Ok(Currency::Usd),
+            "EUR" => Ok(Currency::Eur),
+            "GBP" => Ok(Currency::Gbp),
+            other => Err(MoneyError::UnknownCurrency(other.to_string())),
         }
     }
 }
@@ -53,8 +67,48 @@ impl Amount {
     }
 }
 
+impl FromStr for Amount {
+    type Err = MoneyError;
+
+    /// Parses `"<number> <CODE>"`, e.g. `"12.50 USD"`.
+    ///
+    /// The number may have fewer decimal places than the currency allows
+    /// (`"12.5 USD"` is $12.50) but never more: `"12.505 USD"` is rejected
+    /// rather than silently rounded.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let invalid = || MoneyError::Invalid(s.to_string());
+
+        let (number, code) = s.trim().split_once(' ').ok_or_else(invalid)?;
+        let currency: Currency = code.parse()?;
+        let exponent: u32 = 2;
+
+        let (whole, frac) = number.split_once('.').unwrap_or((number, ""));
+        let digits_only = |part: &str| part.bytes().all(|b| b.is_ascii_digit());
+        if whole.is_empty() || !digits_only(whole) || !digits_only(frac) {
+            return Err(invalid());
+        }
+        if frac.len() > exponent as usize || (number.contains('.') && frac.is_empty()) {
+            return Err(invalid());
+        }
+
+        // "12.5" in a two-decimal currency is 12 * 100 + 5 * 10.
+        let scale = 10u64.pow(exponent);
+        let frac_scale = 10u64.pow(exponent - frac.len() as u32);
+        // Both parts are known to be digits, so parsing can only fail on
+        // overflow, or on an empty fraction, which means zero.
+        let whole: u64 = whole.parse().map_err(|_| MoneyError::Overflow)?;
+        let frac: u64 = frac.parse().unwrap_or(0);
+
+        let minor = whole
+            .checked_mul(scale)
+            .and_then(|w| w.checked_add(frac * frac_scale))
+            .ok_or(MoneyError::Overflow)?;
+        Ok(Amount::new(minor, currency))
+    }
+}
+
 impl fmt::Display for Amount {
-    /// Formats as `"12.50 USD"`.
+    /// Formats as `"12.50 USD"`, the same shape `parse` accepts.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -63,5 +117,57 @@ impl fmt::Display for Amount {
             self.minor % 100,
             self.currency
         )
+    }
+}
+
+/// Why an amount couldn't be parsed or computed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MoneyError {
+    /// The text wasn't `"<number> <CODE>"`.
+    Invalid(String),
+    UnknownCurrency(String),
+    Overflow,
+}
+
+impl fmt::Display for MoneyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MoneyError::Invalid(s) => write!(f, "invalid amount {s:?}"),
+            MoneyError::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
+            MoneyError::Overflow => f.write_str("amount overflows u64 minor units"),
+        }
+    }
+}
+
+impl std::error::Error for MoneyError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_formats_round_trip() {
+        for text in ["12.50 USD", "0.05 EUR", "1000.00 GBP"] {
+            let amount: Amount = text.parse().unwrap();
+            assert_eq!(amount.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn pads_short_fractions() {
+        let amount: Amount = "12.5 USD".parse().unwrap();
+        assert_eq!(amount, Amount::new(1250, Currency::Usd));
+    }
+
+    #[test]
+    fn rejects_malformed_amounts() {
+        let malformed = ["", "12.50", "12.505 USD", "-1.00 USD", "12. USD"];
+        for text in malformed {
+            assert!(text.parse::<Amount>().is_err(), "{text:?} should not parse");
+        }
+        assert_eq!(
+            "1.00 XYZ".parse::<Amount>(),
+            Err(MoneyError::UnknownCurrency("XYZ".to_string()))
+        );
     }
 }
