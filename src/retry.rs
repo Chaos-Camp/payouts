@@ -11,6 +11,7 @@
 use std::thread;
 use std::time::Duration;
 
+use crate::config::RetryConfig;
 use crate::provider::{Provider, ProviderError, Receipt};
 use crate::request::PayoutRequest;
 
@@ -73,6 +74,20 @@ where
         sleeper.sleep(backoff(attempt));
     }
     Err(last_error.expect("at least one attempt was made"))
+}
+
+/// [`send_with_retry`], with the attempt budget taken from `config`.
+pub fn send_with_config<P, S>(
+    provider: &P,
+    req: &PayoutRequest,
+    config: &RetryConfig,
+    sleeper: &mut S,
+) -> Result<Receipt, ProviderError>
+where
+    P: Provider + ?Sized,
+    S: Sleeper + ?Sized,
+{
+    send_with_retry(provider, req, config.max_attempts, sleeper)
 }
 
 #[cfg(test)]
