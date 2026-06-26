@@ -1,6 +1,8 @@
 //! The retry loop, end to end, against a scripted provider.
 
-use payouts::{send_with_retry, Amount, Currency, FakeProvider, NoSleep, PayoutRequest};
+use payouts::{
+    send_with_retry, Amount, Currency, FakeProvider, NoSleep, PayoutRequest, ProviderError,
+};
 
 fn request() -> PayoutRequest {
     PayoutRequest::builder()
@@ -17,4 +19,13 @@ fn retries_a_failed_payout() {
     let result = send_with_retry(&provider, &request(), 5, &mut NoSleep);
     assert!(result.is_ok());
     assert_eq!(provider.calls(), 3);
+}
+
+#[test]
+fn passes_a_fatal_error_through() {
+    let provider = FakeProvider::fatal("recipient account closed");
+    let result = send_with_retry(&provider, &request(), 10, &mut NoSleep);
+    let expected = ProviderError::Fatal("recipient account closed".to_string());
+    assert_eq!(result, Err(expected));
+    assert_eq!(provider.calls(), 1, "fatal errors must not be retried");
 }

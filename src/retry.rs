@@ -1,7 +1,7 @@
 //! Retrying payouts against a provider that sometimes says "not now".
 //!
-//! [`send_with_retry`] calls [`Provider::send`] until it succeeds or
-//! the attempt budget runs out. Between
+//! [`send_with_retry`] calls [`Provider::send`] until it succeeds, the
+//! provider returns a fatal error, or the attempt budget runs out. Between
 //! attempts it waits [`backoff`]`(attempt)`, which doubles each time so a
 //! struggling provider gets room to recover.
 //!
@@ -51,8 +51,9 @@ pub fn backoff(attempt: u32) -> Duration {
 
 /// Sends `req`, making up to `max_attempts` attempts in total.
 ///
-/// After each failure it sleeps for [`backoff`] of the attempt that just
-/// failed.
+/// After each transient failure it sleeps for [`backoff`] of the attempt
+/// that just failed. Fatal errors are returned at once: there is no point
+/// asking twice for a payout to a closed account.
 ///
 /// `max_attempts` counts the first try, so `1` means "no retries".
 pub fn send_with_retry<P, S>(
@@ -69,6 +70,7 @@ where
     for attempt in 0..max_attempts {
         match provider.send(req) {
             Ok(receipt) => return Ok(receipt),
+            Err(err) if !err.is_retryable() => return Err(err),
             Err(err) => last_error = Some(err),
         }
         sleeper.sleep(backoff(attempt));

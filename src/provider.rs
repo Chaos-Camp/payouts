@@ -33,6 +33,13 @@ pub enum ProviderError {
     Fatal(String),
 }
 
+impl ProviderError {
+    /// Whether sending the same request again might succeed.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, ProviderError::Transient(_))
+    }
+}
+
 impl fmt::Display for ProviderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -84,6 +91,15 @@ impl FakeProvider {
         Self::failing(u32::MAX, status)
     }
 
+    /// Fails every call with `Fatal(reason)`.
+    pub fn fatal(reason: impl Into<String>) -> Self {
+        FakeProvider {
+            failures_left: Cell::new(u32::MAX),
+            failure: ProviderError::Fatal(reason.into()),
+            calls: Cell::new(0),
+        }
+    }
+
     /// How many times `send` has been called.
     pub fn calls(&self) -> u32 {
         self.calls.get()
@@ -131,5 +147,11 @@ mod tests {
         assert_eq!(provider.send(&req), Err(ProviderError::Transient(503)));
         assert_eq!(provider.send(&req).unwrap().id, "po_0003");
         assert_eq!(provider.calls(), 3);
+    }
+
+    #[test]
+    fn only_transient_errors_are_retryable() {
+        assert!(ProviderError::Transient(503).is_retryable());
+        assert!(!ProviderError::Fatal("account closed".into()).is_retryable());
     }
 }
