@@ -1,7 +1,7 @@
 //! Money, stored as integer minor units.
 //!
 //! Floating point never touches an amount. `12.50 USD` is held as 1250
-//! cents.
+//! cents; `500 JPY` is held as 500 yen, because the yen has no minor unit.
 
 use std::fmt;
 use std::str::FromStr;
@@ -12,6 +12,7 @@ pub enum Currency {
     Usd,
     Eur,
     Gbp,
+    Jpy,
 }
 
 impl Currency {
@@ -21,6 +22,15 @@ impl Currency {
             Currency::Usd => "USD",
             Currency::Eur => "EUR",
             Currency::Gbp => "GBP",
+            Currency::Jpy => "JPY",
+        }
+    }
+
+    /// How many decimal places the minor unit has: 2 for cents, 0 for yen.
+    pub fn exponent(self) -> u32 {
+        match self {
+            Currency::Jpy => 0,
+            _ => 2,
         }
     }
 }
@@ -33,6 +43,7 @@ impl FromStr for Currency {
             "USD" => Ok(Currency::Usd),
             "EUR" => Ok(Currency::Eur),
             "GBP" => Ok(Currency::Gbp),
+            "JPY" => Ok(Currency::Jpy),
             other => Err(MoneyError::UnknownCurrency(other.to_string())),
         }
     }
@@ -70,7 +81,7 @@ impl Amount {
 impl FromStr for Amount {
     type Err = MoneyError;
 
-    /// Parses `"<number> <CODE>"`, e.g. `"12.50 USD"`.
+    /// Parses `"<number> <CODE>"`, e.g. `"12.50 USD"` or `"500 JPY"`.
     ///
     /// The number may have fewer decimal places than the currency allows
     /// (`"12.5 USD"` is $12.50) but never more: `"12.505 USD"` is rejected
@@ -80,7 +91,7 @@ impl FromStr for Amount {
 
         let (number, code) = s.trim().split_once(' ').ok_or_else(invalid)?;
         let currency: Currency = code.parse()?;
-        let exponent: u32 = 2;
+        let exponent = currency.exponent();
 
         let (whole, frac) = number.split_once('.').unwrap_or((number, ""));
         let digits_only = |part: &str| part.bytes().all(|b| b.is_ascii_digit());
@@ -110,12 +121,18 @@ impl FromStr for Amount {
 impl fmt::Display for Amount {
     /// Formats as `"12.50 USD"`, the same shape `parse` accepts.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let exponent = self.currency.exponent();
+        if exponent == 0 {
+            return write!(f, "{} {}", self.minor, self.currency);
+        }
+        let scale = 10u64.pow(exponent);
         write!(
             f,
-            "{}.{:02} {}",
-            self.minor / 100,
-            self.minor % 100,
-            self.currency
+            "{}.{:0width$} {}",
+            self.minor / scale,
+            self.minor % scale,
+            self.currency,
+            width = exponent as usize
         )
     }
 }
@@ -147,7 +164,7 @@ mod tests {
 
     #[test]
     fn parses_and_formats_round_trip() {
-        for text in ["12.50 USD", "0.05 EUR", "1000.00 GBP"] {
+        for text in ["12.50 USD", "0.05 EUR", "1000.00 GBP", "500 JPY"] {
             let amount: Amount = text.parse().unwrap();
             assert_eq!(amount.to_string(), text);
         }
@@ -161,7 +178,7 @@ mod tests {
 
     #[test]
     fn rejects_malformed_amounts() {
-        let malformed = ["", "12.50", "12.505 USD", "-1.00 USD", "12. USD"];
+        let malformed = ["", "12.50", "12.505 USD", "-1.00 USD", "12. USD", "1.5 JPY"];
         for text in malformed {
             assert!(text.parse::<Amount>().is_err(), "{text:?} should not parse");
         }

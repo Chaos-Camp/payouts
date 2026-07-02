@@ -150,6 +150,13 @@ mod tests {
     }
 
     #[test]
+    fn receipts_echo_zero_decimal_amounts() {
+        let req = request(Amount::new(500, Currency::Jpy));
+        let receipt = FakeProvider::succeeding().send(&req).unwrap();
+        assert_eq!(receipt.amount.to_string(), "500 JPY");
+    }
+
+    #[test]
     fn only_transient_errors_are_retryable() {
         assert!(ProviderError::Transient(503).is_retryable());
         assert!(!ProviderError::Fatal("account closed".into()).is_retryable());
