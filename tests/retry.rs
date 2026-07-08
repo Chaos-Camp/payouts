@@ -2,6 +2,7 @@
 
 use payouts::{
     send_with_retry, Amount, Currency, FakeProvider, NoSleep, PayoutRequest, ProviderError,
+    RetryError,
 };
 
 fn request() -> PayoutRequest {
@@ -26,6 +27,6 @@ fn passes_a_fatal_error_through() {
     let provider = FakeProvider::fatal("recipient account closed");
     let result = send_with_retry(&provider, &request(), 10, &mut NoSleep);
     let expected = ProviderError::Fatal("recipient account closed".to_string());
-    assert_eq!(result, Err(expected));
+    assert_eq!(result, Err(RetryError::Fatal(expected)));
     assert_eq!(provider.calls(), 1, "fatal errors must not be retried");
 }
