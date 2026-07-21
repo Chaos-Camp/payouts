@@ -137,6 +137,18 @@ mod tests {
     use crate::money::{Amount, Currency};
     use crate::provider::FakeProvider;
 
+    /// Counts how many times it was asked to sleep.
+    #[derive(Default)]
+    struct CountingSleeper {
+        sleeps: u32,
+    }
+
+    impl Sleeper for CountingSleeper {
+        fn sleep(&mut self, _duration: Duration) {
+            self.sleeps += 1;
+        }
+    }
+
     fn request() -> PayoutRequest {
         PayoutRequest::builder()
             .recipient("acct_123")
@@ -150,6 +162,15 @@ mod tests {
     fn backoff_doubles_from_one_second() {
         let waits: Vec<u64> = (0..5).map(|a| backoff(a).as_secs()).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16]);
+    }
+
+    #[test]
+    fn sleeps_once_per_failed_attempt() {
+        let provider = FakeProvider::always_failing(503);
+        let mut sleeper = CountingSleeper::default();
+        let _ = send_with_retry(&provider, &request(), 4, &mut sleeper);
+        assert_eq!(provider.calls(), 4);
+        assert_eq!(sleeper.sleeps, 4);
     }
 
     #[test]
