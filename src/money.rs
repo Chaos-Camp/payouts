@@ -2,6 +2,8 @@
 //!
 //! Floating point never touches an amount. `12.50 USD` is held as 1250
 //! cents; `500 JPY` is held as 500 yen, because the yen has no minor unit.
+//! Arithmetic is checked, so an overflow is an error you can see rather
+//! than a payout you can't explain.
 
 use std::fmt;
 use std::str::FromStr;
@@ -76,6 +78,24 @@ impl Amount {
     pub fn currency(self) -> Currency {
         self.currency
     }
+
+    /// Adds two amounts of the same currency.
+    ///
+    /// Mixing currencies is an error, not an implicit conversion, and so is
+    /// overflowing `u64`.
+    pub fn checked_add(self, other: Amount) -> Result<Amount, MoneyError> {
+        if self.currency != other.currency {
+            return Err(MoneyError::CurrencyMismatch {
+                left: self.currency,
+                right: other.currency,
+            });
+        }
+        let minor = self
+            .minor
+            .checked_add(other.minor)
+            .ok_or(MoneyError::Overflow)?;
+        Ok(Amount::new(minor, self.currency))
+    }
 }
 
 impl FromStr for Amount {
@@ -143,6 +163,10 @@ pub enum MoneyError {
     /// The text wasn't `"<number> <CODE>"`.
     Invalid(String),
     UnknownCurrency(String),
+    CurrencyMismatch {
+        left: Currency,
+        right: Currency,
+    },
     Overflow,
 }
 
@@ -151,6 +175,9 @@ impl fmt::Display for MoneyError {
         match self {
             MoneyError::Invalid(s) => write!(f, "invalid amount {s:?}"),
             MoneyError::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
+            MoneyError::CurrencyMismatch { left, right } => {
+                write!(f, "cannot combine {left} with {right}")
+            }
             MoneyError::Overflow => f.write_str("amount overflows u64 minor units"),
         }
     }
@@ -186,5 +213,20 @@ mod tests {
             "1.00 XYZ".parse::<Amount>(),
             Err(MoneyError::UnknownCurrency("XYZ".to_string()))
         );
+    }
+
+    #[test]
+    fn checked_add_refuses_mixed_currencies() {
+        let usd = Amount::new(100, Currency::Usd);
+        let eur = Amount::new(100, Currency::Eur);
+        let err = usd.checked_add(eur).unwrap_err();
+        assert!(matches!(err, MoneyError::CurrencyMismatch { .. }));
+    }
+
+    #[test]
+    fn checked_add_reports_overflow() {
+        let big = Amount::new(u64::MAX, Currency::Usd);
+        let one = Amount::new(1, Currency::Usd);
+        assert_eq!(big.checked_add(one), Err(MoneyError::Overflow));
     }
 }

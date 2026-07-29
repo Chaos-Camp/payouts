@@ -8,7 +8,7 @@
 use std::cell::Cell;
 use std::fmt;
 
-use crate::money::Amount;
+use crate::money::{Amount, MoneyError};
 use crate::request::PayoutRequest;
 
 /// Proof that the provider accepted a payout.
@@ -50,6 +50,14 @@ impl fmt::Display for ProviderError {
 }
 
 impl std::error::Error for ProviderError {}
+
+/// A provider that sends back an amount we can't represent has sent back
+/// something we shouldn't retry.
+impl From<MoneyError> for ProviderError {
+    fn from(err: MoneyError) -> Self {
+        ProviderError::Fatal(err.to_string())
+    }
+}
 
 /// Something that can move money to a recipient.
 ///
