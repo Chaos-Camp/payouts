@@ -44,7 +44,7 @@ impl Sleeper for NoSleep {
 
 /// How long to wait after attempt number `attempt` fails.
 ///
-/// The wait starts at one second and doubels with each failure: 1s, 2s,
+/// The wait starts at one second and doubles with each failure: 1s, 2s,
 /// 4s, 8s, ...
 pub fn backoff(attempt: u32) -> Duration {
     BASE_DELAY * 2u32.pow(attempt)
