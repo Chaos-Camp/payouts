@@ -44,10 +44,19 @@ impl Sleeper for NoSleep {
 
 /// How long to wait after attempt number `attempt` fails.
 ///
-/// The wait starts at one second and doubles with each failure: 1s, 2s,
-/// 4s, 8s, ...
+/// Attempts are counted from 1. The wait starts at one second and doubles
+/// with each failure: 1s, 2s, 4s, 8s, ...
+///
+/// ```
+/// use std::time::Duration;
+/// use payouts::backoff;
+///
+/// assert_eq!(backoff(1), Duration::from_secs(1));
+/// assert_eq!(backoff(4), Duration::from_secs(8));
+/// ```
 pub fn backoff(attempt: u32) -> Duration {
-    BASE_DELAY * 2u32.pow(attempt)
+    let doublings = attempt.saturating_sub(1);
+    BASE_DELAY * 2u32.pow(doublings)
 }
 
 /// Why [`send_with_retry`] gave up.
@@ -103,7 +112,7 @@ where
 {
     let max_attempts = max_attempts.max(1);
     let mut last_error = None;
-    for attempt in 0..max_attempts {
+    for attempt in 1..=max_attempts {
         match provider.send(req) {
             Ok(receipt) => return Ok(receipt),
             Err(err) if !err.is_retryable() => return Err(RetryError::Fatal(err)),
@@ -160,7 +169,7 @@ mod tests {
 
     #[test]
     fn backoff_doubles_from_one_second() {
-        let waits: Vec<u64> = (0..5).map(|a| backoff(a).as_secs()).collect();
+        let waits: Vec<u64> = (1..=5).map(|a| backoff(a).as_secs()).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16]);
     }
 
