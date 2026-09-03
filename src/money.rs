@@ -79,6 +79,10 @@ impl Amount {
         self.currency
     }
 
+    pub fn is_zero(self) -> bool {
+        self.minor == 0
+    }
+
     /// Adds two amounts of the same currency.
     ///
     /// Mixing currencies is an error, not an implicit conversion, and so is

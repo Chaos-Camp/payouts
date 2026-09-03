@@ -65,6 +65,9 @@ impl From<MoneyError> for ProviderError {
 /// map rate limiting and 5xx responses to [`ProviderError::Transient`] and
 /// everything else to [`ProviderError::Fatal`]. Retrying is the caller's
 /// job; see [`crate::send_with_retry`].
+///
+/// Requests that reach a provider always have a non-zero amount: the
+/// builder rejects zero before anything is sent.
 pub trait Provider {
     /// Sends one payout, once.
     fn send(&self, req: &PayoutRequest) -> Result<Receipt, ProviderError>;

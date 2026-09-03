@@ -64,6 +64,10 @@ impl PayoutRequestBuilder {
         let recipient = self.recipient.ok_or(RequestError::MissingRecipient)?;
         let amount = self.amount.ok_or(RequestError::MissingAmount)?;
         let reference = self.reference.ok_or(RequestError::MissingReference)?;
+        if amount.is_zero() {
+            // The provider charges a fee per payout, empty ones included.
+            return Err(RequestError::ZeroAmount);
+        }
         Ok(PayoutRequest {
             recipient,
             amount,
@@ -78,6 +82,7 @@ pub enum RequestError {
     MissingRecipient,
     MissingAmount,
     MissingReference,
+    ZeroAmount,
 }
 
 impl fmt::Display for RequestError {
@@ -86,6 +91,7 @@ impl fmt::Display for RequestError {
             RequestError::MissingRecipient => "payout request has no recipient",
             RequestError::MissingAmount => "payout request has no amount",
             RequestError::MissingReference => "payout request has no reference",
+            RequestError::ZeroAmount => "payout amount is zero",
         })
     }
 }
@@ -113,5 +119,15 @@ mod tests {
     fn requires_every_field() {
         let result = PayoutRequest::builder().recipient("acct_123").build();
         assert_eq!(result, Err(RequestError::MissingAmount));
+    }
+
+    #[test]
+    fn rejects_zero_amounts() {
+        let result = PayoutRequest::builder()
+            .recipient("acct_123")
+            .amount(Amount::new(0, Currency::Usd))
+            .reference("INV-1001")
+            .build();
+        assert_eq!(result, Err(RequestError::ZeroAmount));
     }
 }
