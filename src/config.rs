@@ -8,8 +8,9 @@ pub struct RetryConfig {
 }
 
 impl RetryConfig {
-    /// Enough to ride out a short blip.
-    pub const DEFAULT_MAX_ATTEMPTS: u32 = 5;
+    /// The sandbox sheds load with bursts of 503s while it deploys; ten
+    /// attempts rides those out.
+    pub const DEFAULT_MAX_ATTEMPTS: u32 = 10;
 
     pub fn new(max_attempts: u32) -> Self {
         RetryConfig {
@@ -29,8 +30,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_to_five_attempts() {
-        assert_eq!(RetryConfig::default().max_attempts, 5);
+    fn defaults_to_ten_attempts() {
+        assert_eq!(RetryConfig::default().max_attempts, 10);
     }
 
     #[test]

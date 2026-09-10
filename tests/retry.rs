@@ -23,18 +23,18 @@ fn retries_a_failed_payout() {
 }
 
 #[test]
-fn gives_up_after_five_attempts() {
+fn gives_up_after_ten_attempts() {
     let provider = FakeProvider::always_failing(503);
     let config = RetryConfig::default();
     let result = send_with_config(&provider, &request(), &config, &mut NoSleep);
     assert_eq!(
         result,
         Err(RetryError::Exhausted {
-            attempts: 5,
+            attempts: 10,
             last: ProviderError::Transient(503),
         })
     );
-    assert_eq!(provider.calls(), 5);
+    assert_eq!(provider.calls(), 10);
 }
 
 #[test]
