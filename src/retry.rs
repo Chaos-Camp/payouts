@@ -56,7 +56,9 @@ impl Sleeper for NoSleep {
 /// ```
 pub fn backoff(attempt: u32) -> Duration {
     let doublings = attempt.saturating_sub(1);
-    BASE_DELAY * 2u32.pow(doublings)
+    // Saturate rather than overflow: a caller passing a huge attempt number
+    // gets a very long wait, not a panic.
+    BASE_DELAY.saturating_mul(2u32.saturating_pow(doublings))
 }
 
 /// Why [`send_with_retry`] gave up.
@@ -171,6 +173,11 @@ mod tests {
     fn backoff_doubles_from_one_second() {
         let waits: Vec<u64> = (1..=5).map(|a| backoff(a).as_secs()).collect();
         assert_eq!(waits, [1, 2, 4, 8, 16]);
+    }
+
+    #[test]
+    fn backoff_saturates_instead_of_panicking() {
+        assert!(backoff(u32::MAX) >= backoff(64));
     }
 
     #[test]
