@@ -9,7 +9,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// The currencies Tidepool pays out in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Currency {
     Usd,
     Eur,
@@ -58,7 +58,7 @@ impl fmt::Display for Currency {
 }
 
 /// An amount of money in a single currency.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Amount {
     minor: u64,
     currency: Currency,

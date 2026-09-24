@@ -12,7 +12,7 @@ use crate::money::{Amount, MoneyError};
 use crate::request::PayoutRequest;
 
 /// Proof that the provider accepted a payout.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Receipt {
     /// The provider's identifier for the payout, e.g. `"po_0001"`.
     pub id: String,
@@ -71,6 +71,12 @@ impl From<MoneyError> for ProviderError {
 pub trait Provider {
     /// Sends one payout, once.
     fn send(&self, req: &PayoutRequest) -> Result<Receipt, ProviderError>;
+}
+
+impl<P: Provider + ?Sized> Provider for &P {
+    fn send(&self, req: &PayoutRequest) -> Result<Receipt, ProviderError> {
+        (**self).send(req)
+    }
 }
 
 /// A scripted provider for tests: fails a set number of times, then succeeds.
