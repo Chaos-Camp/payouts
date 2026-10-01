@@ -19,7 +19,12 @@ use crate::request::PayoutRequest;
 /// The wait after the first failed attempt.
 const BASE_DELAY: Duration = Duration::from_secs(1);
 
-/// Something that can wait. Tests swap in [`NoSleep`].
+/// Something that can wait.
+///
+/// [`send_with_retry`] calls `sleep` once after each transient failure,
+/// with the [`backoff`] for the attempt that just failed. Production code
+/// uses [`ThreadSleeper`]; tests use [`NoSleep`], or their own sleeper that
+/// records what it was asked to do.
 pub trait Sleeper {
     fn sleep(&mut self, duration: Duration);
 }
@@ -40,6 +45,12 @@ pub struct NoSleep;
 
 impl Sleeper for NoSleep {
     fn sleep(&mut self, _duration: Duration) {}
+}
+
+impl<S: Sleeper + ?Sized> Sleeper for &mut S {
+    fn sleep(&mut self, duration: Duration) {
+        (**self).sleep(duration);
+    }
 }
 
 /// How long to wait after attempt number `attempt` fails.
