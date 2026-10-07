@@ -43,7 +43,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-CI runs the same three.
+CI runs the same three, plus a mutation-testing pass (`cargo mutants`) over
+the lines each pull request changes.
 
 ---
 

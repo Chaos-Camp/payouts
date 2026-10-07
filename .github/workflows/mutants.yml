@@ -1,0 +1,30 @@
+name: Mutants
+
+# Mutation-test only the lines a pull request changes. A surviving mutant
+# means a line can be changed without any test noticing.
+on:
+  pull_request:
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Run cargo mutants on the diff
+        # Survivors are evidence for the reviewer, not a reason to fail CI.
+        continue-on-error: true
+        shell: bash
+        run: |
+          cargo mutants --in-diff <(git diff origin/${{ github.base_ref }}...HEAD) --no-shuffle -j 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants
+          path: mutants.out/outcomes.json
