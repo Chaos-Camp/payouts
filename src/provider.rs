@@ -5,7 +5,8 @@
 //! only thing this crate needs to know about a failure is whether trying
 //! again might help, which is what [`ProviderError`] encodes.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::fmt;
 
 use crate::money::{Amount, MoneyError};
@@ -20,6 +21,8 @@ pub struct Receipt {
     pub reference: String,
     /// What the provider says it paid out.
     pub amount: Amount,
+    /// The idempotency key the provider deduplicated on.
+    pub idempotency_key: String,
 }
 
 /// Why a provider rejected a payout.
@@ -68,6 +71,9 @@ impl From<MoneyError> for ProviderError {
 ///
 /// Requests that reach a provider always have a non-zero amount: the
 /// builder rejects zero before anything is sent.
+///
+/// Implementations must send [`PayoutRequest::idempotency_key`] with every
+/// attempt, so that a retry after a timeout can't pay the recipient twice.
 pub trait Provider {
     /// Sends one payout, once.
     fn send(&self, req: &PayoutRequest) -> Result<Receipt, ProviderError>;
@@ -85,6 +91,8 @@ pub struct FakeProvider {
     failures_left: Cell<u32>,
     failure: ProviderError,
     calls: Cell<u32>,
+    /// Receipts by idempotency key: a repeated key gets the first receipt.
+    paid: RefCell<HashMap<String, Receipt>>,
 }
 
 impl FakeProvider {
@@ -99,6 +107,7 @@ impl FakeProvider {
             failures_left: Cell::new(times),
             failure: ProviderError::Transient(status),
             calls: Cell::new(0),
+            paid: RefCell::new(HashMap::new()),
         }
     }
 
@@ -114,6 +123,7 @@ impl FakeProvider {
             failures_left: Cell::new(u32::MAX),
             failure: ProviderError::Fatal(reason.into()),
             calls: Cell::new(0),
+            paid: RefCell::new(HashMap::new()),
         }
     }
 
@@ -134,11 +144,20 @@ impl Provider for FakeProvider {
             return Err(self.failure.clone());
         }
 
-        Ok(Receipt {
+        let key = req.idempotency_key();
+        if let Some(receipt) = self.paid.borrow().get(key) {
+            return Ok(receipt.clone());
+        }
+        let receipt = Receipt {
             id: format!("po_{call:04}"),
             reference: req.reference().to_string(),
             amount: req.amount(),
-        })
+            idempotency_key: key.to_string(),
+        };
+        self.paid
+            .borrow_mut()
+            .insert(key.to_string(), receipt.clone());
+        Ok(receipt)
     }
 }
 

@@ -13,6 +13,7 @@ pub struct PayoutRequest {
     recipient: String,
     amount: Amount,
     reference: String,
+    idempotency_key: String,
 }
 
 impl PayoutRequest {
@@ -33,6 +34,12 @@ impl PayoutRequest {
     pub fn reference(&self) -> &str {
         &self.reference
     }
+
+    /// The key the provider deduplicates on. Every attempt at the same
+    /// payout must send the same key, or a retry can pay twice.
+    pub fn idempotency_key(&self) -> &str {
+        &self.idempotency_key
+    }
 }
 
 /// Builder for [`PayoutRequest`].
@@ -41,6 +48,7 @@ pub struct PayoutRequestBuilder {
     recipient: Option<String>,
     amount: Option<Amount>,
     reference: Option<String>,
+    idempotency_key: Option<String>,
 }
 
 impl PayoutRequestBuilder {
@@ -59,6 +67,13 @@ impl PayoutRequestBuilder {
         self
     }
 
+    /// Sets the idempotency key. Without one, `build` derives a key from the
+    /// recipient, reference and amount.
+    pub fn idempotency_key(mut self, key: impl Into<String>) -> Self {
+        self.idempotency_key = Some(key.into());
+        self
+    }
+
     /// Checks the request and builds it.
     pub fn build(self) -> Result<PayoutRequest, RequestError> {
         let recipient = self.recipient.ok_or(RequestError::MissingRecipient)?;
@@ -68,10 +83,14 @@ impl PayoutRequestBuilder {
             // The provider charges a fee per payout, empty ones included.
             return Err(RequestError::ZeroAmount);
         }
+        let idempotency_key = self
+            .idempotency_key
+            .unwrap_or_else(|| format!("{recipient}:{reference}:{}", amount.canonical()));
         Ok(PayoutRequest {
             recipient,
             amount,
             reference,
+            idempotency_key,
         })
     }
 }
@@ -113,6 +132,18 @@ mod tests {
             .unwrap();
         assert_eq!(req.recipient(), "acct_123");
         assert_eq!(req.reference(), "INV-1001");
+    }
+
+    #[test]
+    fn an_explicit_idempotency_key_wins() {
+        let req = PayoutRequest::builder()
+            .recipient("acct_123")
+            .amount(Amount::new(1250, Currency::Usd))
+            .reference("INV-1001")
+            .idempotency_key("idem-7f3a")
+            .build()
+            .unwrap();
+        assert_eq!(req.idempotency_key(), "idem-7f3a");
     }
 
     #[test]
