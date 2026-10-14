@@ -19,7 +19,7 @@ fn retries_a_failed_payout() {
     let provider = FakeProvider::failing(2, 503);
     let result = send_with_retry(&provider, &request(), 5, &mut NoSleep);
     assert!(result.is_ok());
-    assert_eq!(provider.calls(), 3);
+    assert_eq!(provider.calls(), 3, "two failures, then the success");
 }
 
 #[test]

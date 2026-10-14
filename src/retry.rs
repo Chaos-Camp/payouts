@@ -105,6 +105,24 @@ impl std::error::Error for RetryError {
     }
 }
 
+// TODO: make MAX_WAIT configurable
+const MAX_WAIT: Duration = Duration::from_secs(30);
+
+/// Never wait longer than MAX_WAIT between attempts.
+fn capped(wait: Duration) -> Duration {
+    if wait > MAX_WAIT {
+        MAX_WAIT
+    } else {
+        wait
+    }
+}
+
+/// The longest a payout can spend waiting between attempts, in total.
+#[allow(dead_code)]
+fn worst_case_wait(max_attempts: u32) -> Duration {
+    (1..max_attempts).map(|a| capped(backoff(a))).sum()
+}
+
 /// Sends `req`, making up to `max_attempts` attempts in total.
 ///
 /// After each transient failure it sleeps for [`backoff`] of the attempt
@@ -131,7 +149,9 @@ where
             Err(err) if !err.is_retryable() => return Err(RetryError::Fatal(err)),
             Err(err) => last_error = Some(err),
         }
-        sleeper.sleep(backoff(attempt));
+        let wait = capped(backoff(attempt));
+        dbg!(wait);
+        sleeper.sleep(wait);
     }
     Err(RetryError::Exhausted {
         attempts: max_attempts,
