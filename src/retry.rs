@@ -19,6 +19,10 @@ use crate::request::PayoutRequest;
 /// The wait after the first failed attempt.
 const BASE_DELAY: Duration = Duration::from_secs(1);
 
+// TODO: make MAX_WAIT configurable
+/// The longest single wait between attempts, however many have failed.
+const MAX_WAIT: Duration = Duration::from_secs(30);
+
 /// Something that can wait.
 ///
 /// [`send_with_retry`] calls `sleep` once after each transient failure,
@@ -105,9 +109,6 @@ impl std::error::Error for RetryError {
     }
 }
 
-// TODO: make MAX_WAIT configurable
-const MAX_WAIT: Duration = Duration::from_secs(30);
-
 /// Never wait longer than MAX_WAIT between attempts.
 fn capped(wait: Duration) -> Duration {
     if wait > MAX_WAIT {
@@ -149,6 +150,7 @@ where
             Err(err) if !err.is_retryable() => return Err(RetryError::Fatal(err)),
             Err(err) => last_error = Some(err),
         }
+        // Cap each wait so one payout can't hold a worker for minutes.
         let wait = capped(backoff(attempt));
         dbg!(wait);
         sleeper.sleep(wait);
