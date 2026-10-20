@@ -83,6 +83,11 @@ impl Amount {
         self.minor == 0
     }
 
+    /// A stable, unambiguous rendering for keys and logs, e.g. `"1250USD"`.
+    pub fn canonical(self) -> String {
+        format!("{}{}", self.minor, self.currency.code())
+    }
+
     /// Adds two amounts of the same currency.
     ///
     /// Mixing currencies is an error, not an implicit conversion, and so is
