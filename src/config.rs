@@ -21,7 +21,8 @@ impl RetryConfig {
 
 impl Default for RetryConfig {
     fn default() -> Self {
-        RetryConfig::new(Self::DEFAULT_MAX_ATTEMPTS)
+        let max_attempts = Self::DEFAULT_MAX_ATTEMPTS;
+        RetryConfig::new(max_attempts.clone())
     }
 }
 

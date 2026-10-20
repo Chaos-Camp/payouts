@@ -26,6 +26,9 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: payouts-${{ runner.os }}
+          cache-on-failure: true
       - run: cargo clippy --all-targets -- -D warnings
 
   test:
@@ -34,6 +37,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: payouts-${{ runner.os }}
+          cache-on-failure: true
       - run: cargo test --all-targets
       - run: cargo test --doc
 
@@ -47,6 +53,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: payouts-${{ runner.os }}
+          cache-on-failure: true
       - run: cargo test --test retry
       - name: Wait like the sandbox does
         run: sleep 200

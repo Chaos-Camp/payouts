@@ -1,5 +1,7 @@
 # payouts
 
+[![CI](https://github.com/Chaos-Camp/payouts/actions/workflows/ci.yml/badge.svg)](https://github.com/Chaos-Camp/payouts/actions/workflows/ci.yml)
+
 Send payouts to a payment provider, and retry the ones that fail for reasons
 worth retrying.
 
