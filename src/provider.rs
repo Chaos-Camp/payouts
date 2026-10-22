@@ -70,6 +70,24 @@ impl From<MoneyError> for ProviderError {
 /// builder rejects zero before anything is sent.
 pub trait Provider {
     /// Sends one payout, once.
+    ///
+    /// # Contract
+    ///
+    /// - **One attempt.** Do not retry inside `send`; a transient failure is
+    ///   returned as [`ProviderError::Transient`] and the caller decides.
+    /// - **Bounded.** Return within the provider's own timeout. A call that
+    ///   hangs holds up every payout queued behind it.
+    /// - **Honest receipts.** [`Receipt::amount`] is what the provider says it
+    ///   paid, not a copy of `req.amount`; reconciliation compares the two.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use payouts::provider::{FakeProvider, Provider};
+    ///
+    /// let provider = FakeProvider::succeeding();
+    /// # let _ = &provider;
+    /// ```
     fn send(&self, req: &PayoutRequest) -> Result<Receipt, ProviderError>;
 }
 
